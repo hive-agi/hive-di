@@ -9,7 +9,7 @@
    :extra-deps {io.github.hive-agi/hive-test
                 {:git/tag "v0.1.4" :git/sha "a529aa6"}
                 org.clojure/test.check       {:mvn/version "1.1.1"}
-                metosin/malli                {:mvn/version "0.20.0"}
+                metosin/malli                {:mvn/version "0.20.1"}
                 lambdaisland/kaocha          {:mvn/version "1.91.1392"}}
    :main-opts ["-m" "kaocha.runner"]}
 
