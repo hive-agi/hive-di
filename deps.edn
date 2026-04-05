@@ -1,13 +1,13 @@
 {:paths ["src"]
  :deps {org.clojure/clojure         {:mvn/version "1.12.1"}
         io.github.hive-agi/hive-dsl
-        {:git/tag "v0.3.7" :git/sha "d5decedcc8caceb8e6a699c9aae5c40db4ae7057"}}
+        {:git/tag "v0.3.8" :git/sha "6f44e1bf82251b688d211f479a11a9a5ae93c1ad"}}
 
  :aliases
  {:test
   {:extra-paths ["test"]
    :extra-deps {io.github.hive-agi/hive-test
-                {:git/tag "v0.1.4" :git/sha "a529aa6"}
+                {:git/tag "v0.1.5" :git/sha "db72654"}
                 org.clojure/test.check       {:mvn/version "1.1.1"}
                 metosin/malli                {:mvn/version "0.20.1"}
                 lambdaisland/kaocha          {:mvn/version "1.91.1392"}}
