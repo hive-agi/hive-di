@@ -213,3 +213,68 @@
                    {:env-fn no-env})]
       (is (r/ok? result))
       (is (= 9090 (:port (:ok result)))))))
+
+;; =============================================================================
+;; :source/coalesce Resolution — chain env > file > default
+;; =============================================================================
+
+(def coalesce-spec
+  {:db-path (source/coalesce
+              [(source/env "HIVE_KG_DB_PATH" :required false)
+               (source/file "/tmp/hive-test.edn" [:services :datahike :path]
+                            :required false)]
+              :default "data/kg/datahike"
+              :type :string
+              :doc "Datahike file-store path")})
+
+(def file-with-path
+  (constantly {:services {:datahike {:path "/from/file"}}}))
+
+(deftest coalesce-env-wins-when-set
+  (let [result (resolve/resolve-config coalesce-spec {}
+                 {:env-fn (constantly "/from/env")
+                  :file-fn file-with-path})]
+    (is (r/ok? result))
+    (is (= "/from/env" (:db-path (:ok result))))))
+
+(deftest coalesce-file-wins-when-env-unset
+  (let [result (resolve/resolve-config coalesce-spec {}
+                 {:env-fn no-env :file-fn file-with-path})]
+    (is (r/ok? result))
+    (is (= "/from/file" (:db-path (:ok result))))))
+
+(deftest coalesce-default-when-all-unset
+  (let [result (resolve/resolve-config coalesce-spec {}
+                 {:env-fn no-env :file-fn (constantly nil)})]
+    (is (r/ok? result))
+    (is (= "data/kg/datahike" (:db-path (:ok result))))))
+
+(deftest coalesce-override-trumps-all-sources
+  (let [result (resolve/resolve-config coalesce-spec {:db-path "/from/override"}
+                 {:env-fn (constantly "/from/env")
+                  :file-fn file-with-path})]
+    (is (r/ok? result))
+    (is (= "/from/override" (:db-path (:ok result))))))
+
+(deftest coalesce-blank-env-falls-through-to-file
+  (testing "Empty env string is treated as unset, not empty value"
+    (let [result (resolve/resolve-config coalesce-spec {}
+                   {:env-fn (constantly "")
+                    :file-fn file-with-path})]
+      (is (r/ok? result))
+      (is (= "/from/file" (:db-path (:ok result)))))))
+
+(deftest coalesce-required-no-default-fails-when-empty
+  (let [fields {:tok (source/coalesce
+                       [(source/env "X" :required false)
+                        (source/file "f.edn" [:k] :required false)]
+                       :type :string)}
+        result (resolve/resolve-config fields {}
+                 {:env-fn no-env :file-fn (constantly nil)})]
+    (is (not (r/ok? result)))))
+
+(deftest coalesce-empty-sources-falls-to-default
+  (let [fields {:host (source/coalesce [] :default "localhost" :type :string)}
+        result (resolve/resolve-config fields {} {:env-fn no-env})]
+    (is (r/ok? result))
+    (is (= "localhost" (:host (:ok result))))))
