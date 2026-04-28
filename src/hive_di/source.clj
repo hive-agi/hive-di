@@ -17,8 +17,10 @@
 
 (defadt ConfigSource
   "Where a config value originates."
-  [:source/env     {:env-var string?}]
-  [:source/literal {:value any?}])
+  [:source/env      {:env-var string?}]
+  [:source/literal  {:value any?}]
+  [:source/file     {:path string? :key-path vector?}]
+  [:source/coalesce {:sources vector?}])
 
 ;; =============================================================================
 ;; Type Inference
@@ -74,3 +76,53 @@
            :type     (or type (infer-type value))
            :required true}
     (some? doc) (assoc :doc doc)))
+
+(defn file
+  "Declare an EDN-file config source.
+
+   (file \"~/.config/hive-mcp/secrets.edn\" [:openrouter-api-key]
+         :type :string)
+
+   Reads `path` as EDN once per resolve and looks up `key-path`.
+   Use for secrets and per-host config overrides.
+
+   Options:
+     :default  — fallback when file missing or key absent
+     :type     — coercion target
+     :required — whether field must resolve (default true)
+     :doc      — human-readable description"
+  [path key-path & {:keys [default type required doc]
+                    :or   {type :string required true}}]
+  (cond-> {:source   :source/file
+           :path     path
+           :key-path (vec key-path)
+           :type     type
+           :required required}
+    (some? default) (assoc :default default)
+    (some? doc)     (assoc :doc doc)))
+
+(defn coalesce
+  "Chain multiple sources; first non-nil resolved value wins.
+
+   (coalesce [(env \"HIVE_KG_DB_PATH\")
+              (file \"~/.config/hive-mcp/config.edn\" [:services :datahike :path])]
+             :default \"data/kg/datahike\"
+             :type :string
+             :doc \"Datahike file-store path\")
+
+   Each child source is dispatched independently via the resolver's env-fn
+   and file-fn (no per-child :default coercion — only the outer :default).
+   Use when one logical field has multiple legitimate origins (env override
+   for ops, config.edn for canonical, hardcoded default for fresh installs).
+
+   Options mirror env/file: :default :type :required :doc.
+   Children must be source maps (env/literal/file). Nested coalesce is
+   supported but discouraged — flatten when possible."
+  [sources & {:keys [default type required doc]
+              :or   {type :string required true}}]
+  (cond-> {:source   :source/coalesce
+           :sources  (vec sources)
+           :type     type
+           :required required}
+    (some? default) (assoc :default default)
+    (some? doc)     (assoc :doc doc)))

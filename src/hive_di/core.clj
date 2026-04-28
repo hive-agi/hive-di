@@ -32,6 +32,8 @@
 
 (def env source/env)
 (def literal source/literal)
+(def file source/file)
+(def coalesce source/coalesce)
 (def resolve-config resolve/resolve-config)
 
 ;; =============================================================================

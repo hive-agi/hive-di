@@ -2,17 +2,21 @@
   "Pure config resolution engine.
 
    Resolves field registries (from defconfig) into typed config maps.
-   Core design: pure function with injectable env-fn for testability.
+   Core design: pure function with injectable env-fn / file-fn for testability.
 
    Resolution per field:
      1. Check overrides map
-     2. Dispatch on source (:source/env → getenv, :source/literal → value)
+     2. Dispatch on source
+        :source/env     → getenv
+        :source/literal → value
+        :source/file    → (file-fn path) → get-in key-path
      3. blank->nil (empty strings become nil)
      4. Default fallback (pre-typed, skip coercion)
      5. Type coercion via hive-dsl.coerce
 
    ALL errors collected — no short-circuit. Operators see full picture."
   (:require [clojure.string :as str]
+            [hive-di.file :as di-file]
             [hive-dsl.result :as r]
             [hive-dsl.coerce :as coerce]))
 
@@ -58,26 +62,39 @@
 ;; Per-Field Resolution
 ;; =============================================================================
 
+(defn- read-source
+  "Dispatch a single source map to its raw value via env-fn / file-fn.
+   Returns nil when the source has no value (env unset, file missing,
+   key-path absent). Used by both single-source and coalesce dispatch."
+  [source-map env-fn file-fn]
+  (case (:source source-map)
+    :source/env     (env-fn (:env-var source-map))
+    :source/literal (:value source-map)
+    :source/file    (let [parsed (file-fn (:path source-map))]
+                      (when (map? parsed)
+                        (get-in parsed (:key-path source-map))))
+    :source/coalesce (some (fn [child]
+                             (blank->nil (read-source child env-fn file-fn)))
+                           (:sources source-map))
+    nil))
+
 (defn- resolve-field
   "Resolve a single config field. Returns {:ok value} or {:error ...}.
 
    Strategy:
    1. Override wins (caller-provided explicit value)
-   2. Source dispatch (env lookup or literal)
+   2. Source dispatch (env / literal / file / coalesce-of-the-above)
    3. blank->nil normalization
    4. Default fallback (pre-typed, skips coercion)
    5. Type coercion for string values"
-  [field-kw field-spec overrides env-fn]
+  [field-kw field-spec overrides env-fn file-fn]
   (let [;; Step 1: Check overrides
         override-val (get overrides field-kw ::not-found)
 
         ;; Step 2: Source dispatch
         raw-value (if (not= override-val ::not-found)
                     override-val
-                    (case (:source field-spec)
-                      :source/env     (env-fn (:env-var field-spec))
-                      :source/literal (:value field-spec)
-                      nil))
+                    (read-source field-spec env-fn file-fn))
 
         ;; Step 3: Normalize blanks
         normalized (blank->nil raw-value)]
@@ -126,23 +143,30 @@
    Arguments:
      fields    — field registry map {field-kw → field-spec} (from defconfig)
      overrides — explicit values bypassing source lookup (e.g., addon config map)
-     opts      — {:env-fn (fn [var-name] string-or-nil)}
+     opts      — {:env-fn  (fn [var-name] string-or-nil)
+                  :file-fn (fn [path] parsed-edn-or-nil)}
 
    Returns:
      (ok {:host \"localhost\" :port 19530 ...})
      (err :config/resolution-failed {:errors [...] :partial {...}})
 
-   ALL fields attempted — errors collected, not short-circuited."
+   ALL fields attempted — errors collected, not short-circuited.
+   For :source/file fields, the same path is read at most once via memoized file-fn."
   ([fields]
    (resolve-config fields {}))
   ([fields overrides]
    (resolve-config fields overrides {}))
   ([fields overrides opts]
    (let [env-fn (or (:env-fn opts) #(System/getenv %))
+         file-fn (or (:file-fn opts)
+                     (memoize
+                      (fn [path]
+                        (let [r (di-file/read-edn path)]
+                          (when (r/ok? r) (:ok r))))))
          ;; Resolve every field, collecting results
          results (reduce-kv
                    (fn [acc field-kw field-spec]
-                     (let [result (resolve-field field-kw field-spec overrides env-fn)]
+                     (let [result (resolve-field field-kw field-spec overrides env-fn file-fn)]
                        (if (r/ok? result)
                          (-> acc
                              (update :resolved assoc field-kw (:ok result)))

@@ -16,6 +16,11 @@
 ;; Generator Builders
 ;; =============================================================================
 
+(def ^:private gen-nonblank-alphanumeric
+  "Non-blank alphanumeric — bounds keyword/enum generators so
+   `(keyword \"\")` (= `:`, unprintable in EDN) never escapes."
+  (gen/such-that seq gen/string-alphanumeric))
+
 (defn gen-value-for-type
   "Generator producing valid values for a given config type."
   [type-kw]
@@ -24,9 +29,9 @@
     :int     (gen/choose -10000 10000)
     :double  (gen/double* {:min -10000.0 :max 10000.0 :NaN? false :infinite? false})
     :bool    gen/boolean
-    :keyword (gen/fmap keyword gen/string-alphanumeric)
+    :keyword (gen/fmap keyword gen-nonblank-alphanumeric)
     :vec     (gen/vector gen/string-alphanumeric 0 5)
-    :enum    (gen/fmap keyword gen/string-alphanumeric)
+    :enum    (gen/fmap keyword gen-nonblank-alphanumeric)
     gen/any-printable-equatable))
 
 (defn gen-string-for-type
@@ -38,9 +43,9 @@
     :int     (gen/fmap str (gen/choose -10000 10000))
     :double  (gen/fmap str (gen/double* {:min -10000.0 :max 10000.0 :NaN? false :infinite? false}))
     :bool    (gen/elements ["true" "false" "1" "0" "yes" "no"])
-    :keyword (gen/fmap name (gen/fmap keyword gen/string-alphanumeric))
+    :keyword (gen/fmap name (gen/fmap keyword gen-nonblank-alphanumeric))
     :vec     (gen/return "[\"a\",\"b\"]")
-    :enum    (gen/fmap name (gen/fmap keyword gen/string-alphanumeric))
+    :enum    (gen/fmap name (gen/fmap keyword gen-nonblank-alphanumeric))
     gen/string-alphanumeric))
 
 (defn gen-config-overrides

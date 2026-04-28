@@ -43,6 +43,32 @@
     (is (= "fixed" (:name (:ok result))))))
 
 ;; =============================================================================
+;; :source/file Resolution
+;; =============================================================================
+
+(deftest file-source-resolves-via-injected-file-fn
+  (let [fields {:api-key (source/file "fake.edn" [:secrets :openrouter-api-key]
+                                      :type :string)}
+        file-fn (constantly {:secrets {:openrouter-api-key "sk-from-file"}})
+        result (resolve/resolve-config fields {} {:env-fn no-env :file-fn file-fn})]
+    (is (r/ok? result))
+    (is (= "sk-from-file" (:api-key (:ok result))))))
+
+(deftest file-source-falls-back-to-default-when-key-absent
+  (let [fields {:host (source/file "fake.edn" [:host]
+                                   :default "localhost" :type :string)}
+        result (resolve/resolve-config fields {} {:env-fn no-env
+                                                  :file-fn (constantly nil)})]
+    (is (r/ok? result))
+    (is (= "localhost" (:host (:ok result))))))
+
+(deftest file-source-required-no-value-fails
+  (let [fields {:tok (source/file "fake.edn" [:tok] :type :string)}
+        result (resolve/resolve-config fields {} {:env-fn no-env
+                                                  :file-fn (constantly {})})]
+    (is (not (r/ok? result)))))
+
+;; =============================================================================
 ;; Override Resolution
 ;; =============================================================================
 
