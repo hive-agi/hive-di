@@ -42,9 +42,11 @@
   (r/rescue nil (requiring-resolve sym)))
 
 (defn- require-ns
-  "Require an ns-symbol. Returns Result."
+  "Require an ns-symbol. Returns Result.
+   Catches Throwable (not just Exception): a NoClassDefFoundError/LinkageError
+   at require time must degrade to an err Result, not abort the whole run."
   [ns-sym]
-  (r/try-effect* :addon/load-failed (require ns-sym)))
+  (r/try-effect-throwable* :addon/load-failed (require ns-sym)))
 
 ;; =============================================================================
 ;; Step 1: lifecycle-addons (side-effectful requires)
@@ -98,7 +100,7 @@
          extensions)]
     (when (and (seq resolved) registry-target)
       (if-let [register-many! (try-resolve registry-target)]
-        (let [run (r/try-effect* :addon/register-failed (register-many! resolved))]
+        (let [run (r/try-effect-throwable* :addon/register-failed (register-many! resolved))]
           (when-not (r/ok? run)
             (log-warn project-id "register-extensions! failed:" (:message run))))
         (log-warn project-id "registry-target unresolvable:" registry-target)))
@@ -128,7 +130,7 @@
 
          :else
          (if-let [install! (try-resolve install)]
-           (let [run (r/try-effect* :addon/bridge-install-failed (install!))]
+           (let [run (r/try-effect-throwable* :addon/bridge-install-failed (install!))]
              (if (r/ok? run)
                (do (log-debug project-id "bridge installed:" install)
                    (update acc :installed conj install))
@@ -158,19 +160,32 @@
       :else
       (if-let [backend-fn (get resolved backend-key)]
         (if-let [register-fn (try-resolve register)]
-          (let [run (r/try-effect*
+          ;; register-fn (hive-mcp register-headless!) returns {:registered? bool ...}
+          ;; per key and does NOT throw when a backend is protocol-rejected — a
+          ;; bare `true` here would report false-positive success. Fold the real
+          ;; :registered? flags across every metadata key instead.
+          (let [run (r/try-effect-throwable*
                       :addon/headless-register-failed
-                      (when-let [backend (backend-fn)]
-                        (doseq [[k md] metadata]
-                          (register-fn k backend md))
-                        true))]
+                      (if-let [backend (backend-fn)]
+                        (reduce (fn [ok? [k md]]
+                                  (and ok? (boolean (:registered? (register-fn k backend md)))))
+                                true
+                                metadata)
+                        false))]
             (cond
-              (r/ok? run) (do (log-info project-id "headless registered:"
-                                        (vec (keys metadata)))
-                              true)
-              :else       (do (log-warn project-id "headless register failed:"
-                                        (:message run))
-                              false)))
+              (and (r/ok? run) (:ok run))
+              (do (log-info project-id "headless registered:" (vec (keys metadata)))
+                  true)
+
+              (r/ok? run)      ; call succeeded but backend rejected / no backend built
+              (do (log-warn project-id
+                            "headless NOT registered — backend rejected or unavailable for"
+                            (vec (keys metadata)))
+                  false)
+
+              :else (do (log-warn project-id "headless register failed:"
+                                  (:message run))
+                        false)))
           (do (log-warn project-id "headless register-fn unresolvable:" register)
               false))
         (do (log-debug project-id "headless skipped — no backend for"
