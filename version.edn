@@ -2,4 +2,5 @@
  :minor    3
  :license  {:name "MIT" :url "https://opensource.org/licenses/MIT"}
  :scm-url  "https://github.com/hive-agi/hive-di"
- :src-dirs ["src"]}
+ :src-dirs ["src" "resources"]
+ :publish  :clojars}
