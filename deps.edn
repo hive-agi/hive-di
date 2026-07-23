@@ -1,7 +1,7 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
  :deps {org.clojure/clojure         {:mvn/version "1.12.1"}
         io.github.hive-agi/hive-dsl
-        {:mvn/version "0.5.2"}}
+        {:mvn/version "0.5.4"}}
 
  :aliases
  {
@@ -13,7 +13,7 @@
 :test
   {:extra-paths ["test"]
    :extra-deps {io.github.hive-agi/hive-test
-                {:mvn/version "0.3.6"}
+                {:mvn/version "0.3.8"}
                 org.clojure/test.check       {:mvn/version "1.1.1"}
                 metosin/malli                {:mvn/version "0.20.1"}
                 lambdaisland/kaocha          {:mvn/version "1.91.1392"}}
