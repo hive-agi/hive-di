@@ -18,7 +18,8 @@
   (:require [clojure.string :as str]
             [hive-di.file :as di-file]
             [hive-dsl.result :as r]
-            [hive-dsl.coerce :as coerce]))
+            [hive-dsl.coerce :as coerce]
+            [hive-di.pass :as di-pass]))
 
 ;; =============================================================================
 ;; Utilities
@@ -63,18 +64,20 @@
 ;; =============================================================================
 
 (defn- read-source
-  "Dispatch a single source map to its raw value via env-fn / file-fn.
-   Returns nil when the source has no value (env unset, file missing,
-   key-path absent). Used by both single-source and coalesce dispatch."
-  [source-map env-fn file-fn]
+  "Dispatch a single source map to its raw value via the `readers` map
+   {:env-fn :file-fn :pass-fn}. Returns nil when the source has no value (env
+   unset, file missing, key-path absent, pass entry absent). Used by both
+   single-source and coalesce dispatch."
+  [source-map {:keys [env-fn file-fn pass-fn] :as readers}]
   (case (:source source-map)
     :source/env     (env-fn (:env-var source-map))
     :source/literal (:value source-map)
     :source/file    (let [parsed (file-fn (:path source-map))]
                       (when (map? parsed)
                         (get-in parsed (:key-path source-map))))
+    :source/pass    (pass-fn (:path source-map))
     :source/coalesce (some (fn [child]
-                             (blank->nil (read-source child env-fn file-fn)))
+                             (blank->nil (read-source child readers)))
                            (:sources source-map))
     nil))
 
@@ -83,18 +86,18 @@
 
    Strategy:
    1. Override wins (caller-provided explicit value)
-   2. Source dispatch (env / literal / file / coalesce-of-the-above)
+   2. Source dispatch (env / literal / file / pass / coalesce-of-the-above)
    3. blank->nil normalization
    4. Default fallback (pre-typed, skips coercion)
    5. Type coercion for string values"
-  [field-kw field-spec overrides env-fn file-fn]
+  [field-kw field-spec overrides readers]
   (let [;; Step 1: Check overrides
         override-val (get overrides field-kw ::not-found)
 
         ;; Step 2: Source dispatch
         raw-value (if (not= override-val ::not-found)
                     override-val
-                    (read-source field-spec env-fn file-fn))
+                    (read-source field-spec readers))
 
         ;; Step 3: Normalize blanks
         normalized (blank->nil raw-value)]
@@ -144,29 +147,32 @@
      fields    — field registry map {field-kw → field-spec} (from defconfig)
      overrides — explicit values bypassing source lookup (e.g., addon config map)
      opts      — {:env-fn  (fn [var-name] string-or-nil)
-                  :file-fn (fn [path] parsed-edn-or-nil)}
+                  :file-fn (fn [path] parsed-edn-or-nil)
+                  :pass-fn (fn [path] secret-string-or-nil)}
 
    Returns:
      (ok {:host \"localhost\" :port 19530 ...})
      (err :config/resolution-failed {:errors [...] :partial {...}})
 
    ALL fields attempted — errors collected, not short-circuited.
-   For :source/file fields, the same path is read at most once via memoized file-fn."
+   For :source/file fields, the same path is read at most once via memoized file-fn;
+   :source/pass lookups are memoized the same way, so one `pass show` per path."
   ([fields]
    (resolve-config fields {}))
   ([fields overrides]
    (resolve-config fields overrides {}))
   ([fields overrides opts]
-   (let [env-fn (or (:env-fn opts) #(System/getenv %))
-         file-fn (or (:file-fn opts)
-                     (memoize
-                      (fn [path]
-                        (let [r (di-file/read-edn path)]
-                          (when (r/ok? r) (:ok r))))))
+   (let [readers {:env-fn  (or (:env-fn opts) #(System/getenv %))
+                  :file-fn (or (:file-fn opts)
+                               (memoize
+                                (fn [path]
+                                  (let [r (di-file/read-edn path)]
+                                    (when (r/ok? r) (:ok r))))))
+                  :pass-fn (or (:pass-fn opts) (memoize di-pass/show))}
          ;; Resolve every field, collecting results
          results (reduce-kv
                    (fn [acc field-kw field-spec]
-                     (let [result (resolve-field field-kw field-spec overrides env-fn file-fn)]
+                     (let [result (resolve-field field-kw field-spec overrides readers)]
                        (if (r/ok? result)
                          (-> acc
                              (update :resolved assoc field-kw (:ok result)))

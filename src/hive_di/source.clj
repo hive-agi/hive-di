@@ -20,6 +20,7 @@
   [:source/env      {:env-var string?}]
   [:source/literal  {:value any?}]
   [:source/file     {:path string? :key-path vector?}]
+  [:source/pass     {:path string?}]
   [:source/coalesce {:sources vector?}])
 
 ;; =============================================================================
@@ -96,6 +97,30 @@
   (cond-> {:source   :source/file
            :path     path
            :key-path (vec key-path)
+           :type     type
+           :required required}
+    (some? default) (assoc :default default)
+    (some? doc)     (assoc :doc doc)))
+
+(defn pass
+  "Declare a pass-store secret source (passwordstore.org).
+
+   (pass \"Venice/key\")
+
+   Resolves to the FIRST LINE of `pass show <path>`, which is the pass
+   convention for the secret itself. Use for API keys: unlike an env var the
+   value is encrypted at rest, and unlike a file source it is not readable by
+   anything that can read the config.
+
+   Pair with `coalesce` to express \"a real key beats a stale env var\":
+
+     (coalesce [(pass \"Venice/key\") (env \"VENICE_API_KEY\")] :required false)
+
+   Options mirror env/file: :default :type :required :doc."
+  [path & {:keys [default type required doc]
+           :or   {type :string required true}}]
+  (cond-> {:source   :source/pass
+           :path     path
            :type     type
            :required required}
     (some? default) (assoc :default default)
