@@ -13,9 +13,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [hive-dsl.result :as r])
-  (:import (java.io File)
-           (java.nio.file Files)
-           (java.nio.file.attribute PosixFilePermissions)))
+  (:import (java.io File)))
 ;; Copyright (C) 2026 Pedro Gomes Branquinho (BuddhiLW) <pedrogbranquinho@gmail.com>
 ;;
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
@@ -24,28 +22,33 @@
 ;; Perm Hardening
 ;; =============================================================================
 
-(def ^:private owner-rw-perms
-  (PosixFilePermissions/fromString "rw-------"))
+(defonce ^:private -posix-fns (atom {}))
 
-(def ^:private default-perms
-  (PosixFilePermissions/fromString "rw-r--r--"))
+(defn- posix-fn
+  "The `hive-di.file.posix` fn named by SYM, or nil where java.nio.file is
+   absent. Resolved once per symbol and cached, so a host without POSIX pays
+   the failed resolve only on the first call."
+  [sym]
+  (if (contains? @-posix-fns sym)
+    (get @-posix-fns sym)
+    (let [f (try (requiring-resolve sym) (catch Exception _ nil))]
+      (swap! -posix-fns assoc sym f)
+      f)))
 
 (defn restrict-perms!
   "Set POSIX perms on file to 0600. No-op on non-POSIX filesystems.
    Returns true when applied, false when unavailable or failed."
   [path-or-file]
-  (let [^File f (io/file path-or-file)]
-    (r/rescue false
-      (Files/setPosixFilePermissions (.toPath f) owner-rw-perms)
-      true)))
+  (if-let [setter (posix-fn 'hive-di.file.posix/set-owner-rw!)]
+    (setter path-or-file)
+    false))
 
 (defn relax-perms!
   "Set POSIX perms on file to 0644. No-op on non-POSIX filesystems."
   [path-or-file]
-  (let [^File f (io/file path-or-file)]
-    (r/rescue false
-      (Files/setPosixFilePermissions (.toPath f) default-perms)
-      true)))
+  (if-let [setter (posix-fn 'hive-di.file.posix/set-default!)]
+    (setter path-or-file)
+    false))
 
 ;; =============================================================================
 ;; Read
