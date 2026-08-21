@@ -17,7 +17,7 @@
     f))
 
 (defn- posix-perms [^File f]
-  (try (str (Files/getPosixFilePermissions (.toPath f) (into-array java.nio.file.LinkOption [])))
+  (try (into #{} (map str) (Files/getPosixFilePermissions (.toPath f) (into-array java.nio.file.LinkOption [])))
        (catch UnsupportedOperationException _ ::no-posix)))
 
 ;; =============================================================================
@@ -68,7 +68,7 @@
     (is (r/ok? r))
     (let [p (posix-perms f)]
       (when (not= p ::no-posix)
-        (is (= "[OWNER_READ, OWNER_WRITE]" p))))))
+        (is (= #{"OWNER_READ" "OWNER_WRITE"} p))))))
 
 (deftest write-edn-default-does-not-harden
   (let [f (tmp-file "hive-di-public")
@@ -77,7 +77,7 @@
     (when (not= p ::no-posix)
       ;; Default umask-respecting perms include group/other read on most setups.
       ;; We assert only that it is NOT 0600 — we did not opt into hardening.
-      (is (not= "[OWNER_READ, OWNER_WRITE]" p)))))
+      (is (not= #{"OWNER_READ" "OWNER_WRITE"} p)))))
 
 ;; =============================================================================
 ;; restrict-perms! / relax-perms!
@@ -89,7 +89,7 @@
     (file/restrict-perms! f)
     (let [p1 (posix-perms f)]
       (when (not= p1 ::no-posix)
-        (is (= "[OWNER_READ, OWNER_WRITE]" p1))
+        (is (= #{"OWNER_READ" "OWNER_WRITE"} p1))
         (file/relax-perms! f)
         (let [p2 (posix-perms f)]
-          (is (not= "[OWNER_READ, OWNER_WRITE]" p2)))))))
+          (is (not= #{"OWNER_READ" "OWNER_WRITE"} p2)))))))
