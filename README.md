@@ -1,5 +1,14 @@
 # hive-di
 
+<!-- hive-badges -->
+
+[![Clojars Project](https://img.shields.io/clojars/v/io.github.hive-agi/hive-di.svg)](https://clojars.org/io.github.hive-agi/hive-di)
+[![cljdoc](https://cljdoc.org/badge/io.github.hive-agi/hive-di)](https://cljdoc.org/d/io.github.hive-agi/hive-di/CURRENT)
+[![release](https://github.com/hive-agi/hive-di/actions/workflows/release.yml/badge.svg)](https://github.com/hive-agi/hive-di/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+<!-- /hive-badges -->
+
 Declarative, typed, ADT-backed config resolution for Clojure.
 
 Part of the [hive-agi](https://github.com/hive-agi) ecosystem.
