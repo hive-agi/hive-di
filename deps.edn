@@ -18,5 +18,5 @@
   ;; Clojars publishing (see ../hive-build). version = the repo's VERSION file.
   ;; tools.build entrypoint: clojure -T:build <jar|install|bump|verify-license|deploy>.
   :build
-  {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.10"}}
+  {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.11"}}
    :ns-default hive-build.api}}}
