@@ -1,11 +1,16 @@
 (ns hive-di.file-test
   "Tests for hive-di.file — EDN read/write + perm hardening."
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.test :refer [deftest is testing]]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :refer [for-all]]
             [hive-di.file :as file]
             [hive-dsl.result :as r])
   (:import (java.io File)
-           (java.nio.file Files)))
+           (java.nio.file Files)
+           (java.nio.file.attribute PosixFilePermission)))
 
 ;; =============================================================================
 ;; Helpers
@@ -93,3 +98,28 @@
         (file/relax-perms! f)
         (let [p2 (posix-perms f)]
           (is (not= #{"OWNER_READ" "OWNER_WRITE"} p2)))))))
+
+;; =============================================================================
+;; Generated property: restrict-perms!/relax-perms! for any starting mode
+;; =============================================================================
+
+(defspec restrict-relax-any-starting-mode 100
+  (for-all [s (gen/set (gen/elements (vec (PosixFilePermission/values))))]
+    (let [f (tmp-file "hive-di-prop")]
+      (try
+        (let [path (.toPath f)]
+          (Files/setPosixFilePermissions path (java.util.HashSet. s))
+          (let [before (posix-perms f)]
+            (if (= before ::no-posix)
+              true
+              (let [r1 (file/restrict-perms! f)
+                    p1 (posix-perms f)
+                    r2 (file/relax-perms! f)
+                    p2 (posix-perms f)]
+                (and r1
+                     r2
+                     (= #{"OWNER_READ" "OWNER_WRITE"} p1)
+                     (set/superset? p2 #{"OWNER_READ" "OWNER_WRITE"})
+                     (not (= p2 #{"OWNER_READ" "OWNER_WRITE"})))))))
+        (finally
+          (.delete f))))))
