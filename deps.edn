@@ -1,12 +1,12 @@
 {:paths ["src" "resources"]
- :deps {org.clojure/clojure         {:mvn/version "1.12.5"}
-        io.github.hive-agi/hive-dsl {:mvn/version "0.5.24"}}
+ :deps {org.clojure/clojure         {:mvn/version "1.12.6"}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.27"}}
 
  :aliases
  {:test
   {:extra-paths ["test"]
    :extra-deps {io.github.hive-agi/hive-test
-                {:mvn/version "0.4.4"}
+                {:mvn/version "0.4.5"}
                 org.clojure/test.check       {:mvn/version "1.1.3"}
                 metosin/malli                {:mvn/version "0.20.1"}
                 lambdaisland/kaocha          {:mvn/version "1.91.1392"}}
@@ -18,5 +18,5 @@
   ;; Clojars publishing (see ../hive-build). version = the repo's VERSION file.
   ;; tools.build entrypoint: clojure -T:build <jar|install|bump|verify-license|deploy>.
   :build
-  {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.15"}}
+  {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.17"}}
    :ns-default hive-build.api}}}
