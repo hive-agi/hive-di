@@ -1,0 +1,6 @@
+{:project-id "hive-di"
+ :parent "hive"
+ :description "Declarative typed ADT-backed config resolution. One `defconfig` yields the config ADT (resolved/unresolved/invalid), a field registry, a derived malli schema, a Result-returning resolver and generated property tests. Sources: env vars, literals and files such as ~/.config/hive-mcp/config.edn and secrets.edn, with injectable env-fn."
+ :language :clojure
+ :tags ["config" "di" "adt" "defconfig" "malli" "foundation"]
+ :carto {:source-roots ["dev" "resources" "src" "test"]}}
