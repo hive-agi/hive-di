@@ -4,7 +4,9 @@
 
  :aliases
  {:test
-  {:extra-paths ["test"]
+  ;; "contracts" carries the malli m/=> contracts. It is NEVER on :paths —
+  ;; hive-di's core has no malli dependency (README "Malli optional").
+  {:extra-paths ["test" "contracts"]
    :extra-deps {io.github.hive-agi/hive-test
                 {:mvn/version "0.5.0"}
                 org.clojure/test.check       {:mvn/version "1.1.3"}
